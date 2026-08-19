@@ -1,0 +1,15 @@
+                                                                               
+ Usage: investigate [OPTIONS] {bug_report}                                     
+                                                                               
+ Investigate a bug report. For now, it only prints the investigation request.  
+                                                                               
+┌─ Arguments ─────────────────────────────────────────────────────────────────┐
+│ *    bug_report      <str>  [required]                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+┌─ Options ───────────────────────────────────────────────────────────────────┐
+│ --install-completion          Install completion for the current shell.     │
+│ --show-completion             Show completion for the current shell, to     │
+│                               copy it or customize the installation.        │
+│ --help                        Show this message and exit.                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
