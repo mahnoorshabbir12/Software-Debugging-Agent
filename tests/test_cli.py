@@ -1,5 +1,5 @@
 from typer.testing import CliRunner
-from src.cli import app
+from apps.api.cli import app
 
 runner = CliRunner()
 

@@ -12,6 +12,22 @@ def investigate(bug_report: str):
     typer.echo("Initializing investigation... (Features to be implemented in later phases)")
 
 @app.command()
+def analyze(path: str = "."):
+    """
+    Analyze a repository to determine its structure, languages, and monorepo status.
+    """
+    import json
+    from ingestion.scanner import RepositoryAnalyzer
+    
+    typer.echo(f"Analyzing repository at: {path}...")
+    try:
+        analyzer = RepositoryAnalyzer(path)
+        repo_map = analyzer.analyze()
+        typer.echo(repo_map.model_dump_json(indent=2))
+    except Exception as e:
+        typer.echo(f"Error analyzing repository: {e}", err=True)
+
+@app.command()
 def version():
     """
     Print the version of the autonomous debugger.
