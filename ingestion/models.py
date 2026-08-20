@@ -21,3 +21,13 @@ class RepositoryMap(BaseModel):
     dependencies_files: List[str] = Field(default_factory=list, description="Root level dependency files")
     entry_points: List[str] = Field(default_factory=list, description="Root level entry points")
     tests: List[str] = Field(default_factory=list, description="Root level test directories/files")
+
+class CodeChunk(BaseModel):
+    file_path: str = Field(description="Relative path to the source file")
+    symbol: Optional[str] = Field(default=None, description="Name of the function/class (if AST chunk)")
+    chunk_type: str = Field(description="Type of chunk: 'text', 'function', 'class', etc.")
+    language: str = Field(description="Programming language of the chunk")
+    start_line: int = Field(description="1-indexed start line")
+    end_line: int = Field(description="1-indexed end line")
+    content: str = Field(description="The actual code content of the chunk")
+    parent: Optional[str] = Field(default=None, description="The parent class/module if applicable")

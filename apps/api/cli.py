@@ -28,6 +28,31 @@ def analyze(path: str = "."):
         typer.echo(f"Error analyzing repository: {e}", err=True)
 
 @app.command()
+def chunk(path: str, method: str = typer.Option("ast", help="Chunking method: 'ast' or 'fixed'")):
+    """
+    Chunk a source code file using the specified method and print the chunks.
+    """
+    from ingestion.chunker import ASTChunker, FixedSizeChunker
+    import json
+    
+    typer.echo(f"Chunking {path} using {method} method...")
+    try:
+        if method == "ast":
+            chunker = ASTChunker()
+        else:
+            chunker = FixedSizeChunker()
+            
+        chunks = chunker.chunk(path)
+        typer.echo(f"Generated {len(chunks)} chunks.")
+        
+        for c in chunks:
+            typer.echo("-" * 40)
+            typer.echo(c.model_dump_json(indent=2))
+            
+    except Exception as e:
+        typer.echo(f"Error chunking file: {e}", err=True)
+
+@app.command()
 def version():
     """
     Print the version of the autonomous debugger.

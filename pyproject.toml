@@ -13,6 +13,8 @@ dependencies = [
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
     "pathspec>=0.11.0",
+    "tree-sitter>=0.21.3",
+    "tree-sitter-language-pack>=0.2.0",
     # AI dependencies to be added in later phases
     # "langchain>=0.1.0",
     # "langgraph>=0.0.26",
