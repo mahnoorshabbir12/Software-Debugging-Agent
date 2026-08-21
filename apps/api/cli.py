@@ -245,6 +245,93 @@ def triage(bug_report: str = typer.Argument(..., help="The unstructured bug repo
         typer.echo(f"Error during triage: {e}", err=True)
 
 @app.command()
+def hypothesis(bug_report: str = typer.Argument(..., help="The unstructured bug report text.")):
+    """
+    Run the Triage Agent and then the Hypothesis Agent to generate debugging theories.
+    """
+    from backend.agents.triage import TriageAgent
+    from backend.agents.hypothesis import HypothesisAgent
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        typer.echo("Error: OPENROUTER_API_KEY environment variable is missing.", err=True)
+        return
+        
+    try:
+        typer.echo(f"--- 1. Triaging Bug Report ---\n")
+        triage_agent = TriageAgent()
+        investigation_req = triage_agent.triage(bug_report)
+        typer.echo(investigation_req.model_dump_json(indent=2))
+        
+        typer.echo(f"\n--- 2. Generating Hypotheses ---\n")
+        hypothesis_agent = HypothesisAgent()
+        hypotheses_list = hypothesis_agent.generate_hypotheses(investigation_req)
+        
+        for i, h in enumerate(hypotheses_list.hypotheses, 1):
+            typer.echo(f"Hypothesis {i}: {h.title}")
+            typer.echo(f"  Description: {h.description}")
+            typer.echo(f"  Reason: {h.reason}")
+            typer.echo(f"  Expected Evidence: {', '.join(h.expected_evidence)}")
+            typer.echo(f"  Investigation Plan: {', '.join(h.investigation_plan)}")
+            typer.echo("")
+            
+    except Exception as e:
+        typer.echo(f"Error during hypothesis generation: {e}", err=True)
+
+@app.command()
+def evidence(bug_report: str = typer.Argument(..., help="The unstructured bug report text.")):
+    """
+    Run Triage -> Hypothesis -> Evidence Collection on the first hypothesis.
+    """
+    from backend.agents.triage import TriageAgent
+    from backend.agents.hypothesis import HypothesisAgent
+    from backend.agents.evidence import EvidenceGraph
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        typer.echo("Error: OPENROUTER_API_KEY environment variable is missing.", err=True)
+        return
+        
+    try:
+        typer.echo(f"--- 1. Triaging Bug Report ---\n")
+        triage_agent = TriageAgent()
+        investigation_req = triage_agent.triage(bug_report)
+        
+        typer.echo(f"\n--- 2. Generating Hypotheses ---\n")
+        hypothesis_agent = HypothesisAgent()
+        hypotheses_list = hypothesis_agent.generate_hypotheses(investigation_req)
+        
+        if not hypotheses_list.hypotheses:
+            typer.echo("No hypotheses generated.")
+            return
+            
+        first_hypothesis = hypotheses_list.hypotheses[0]
+        typer.echo(f"Evaluating Hypothesis: {first_hypothesis.title}")
+        typer.echo(f"Plan: {first_hypothesis.investigation_plan}")
+        
+        typer.echo(f"\n--- 3. Collecting Evidence ---\n")
+        evidence_graph = EvidenceGraph()
+        result_state = evidence_graph.run(first_hypothesis)
+        
+        eval_result = result_state.get("evaluation")
+        if eval_result:
+            typer.echo(f"Status: {eval_result.status}")
+            typer.echo(f"Confidence: {eval_result.confidence_score}%")
+            typer.echo(f"Supporting Evidence: {eval_result.supporting_evidence}")
+            typer.echo(f"Contradicting Evidence: {eval_result.contradicting_evidence}")
+        else:
+            typer.echo("No evaluation returned.")
+            
+    except Exception as e:
+        typer.echo(f"Error during evidence collection: {e}", err=True)
+
+@app.command()
 def version():
     """
     Print the version of the autonomous debugger.
