@@ -5,7 +5,7 @@ import docker
 from docker.errors import DockerException
 
 class DockerSandbox:
-    def __init__(self, image: str = "python:3.11-slim"):
+    def __init__(self, image: str = "debugger-sandbox:latest"):
         self.image = image
         try:
             self.client = docker.from_env()
@@ -13,18 +13,26 @@ class DockerSandbox:
             raise RuntimeError(f"Could not connect to Docker daemon. Is Docker running? Error: {e}")
         
         self.container = None
+        self._ensure_image_exists()
+
+    def _ensure_image_exists(self):
+        """Builds a custom image with validation tools if it doesn't exist."""
+        try:
+            self.client.images.get(self.image)
+        except docker.errors.ImageNotFound:
+            print(f"Building custom sandbox image '{self.image}'...")
+            dockerfile = '''
+            FROM python:3.11-slim
+            RUN pip install --no-cache-dir pytest ruff mypy
+            '''
+            f = io.BytesIO(dockerfile.encode('utf-8'))
+            self.client.images.build(fileobj=f, tag=self.image, rm=True)
+            print("Image built successfully.")
 
     def create_sandbox(self, project_root: str):
         """
         Spins up a locked-down container and copies the project into it.
         """
-        # Ensure the image exists
-        try:
-            self.client.images.get(self.image)
-        except docker.errors.ImageNotFound:
-            print(f"Pulling image {self.image}...")
-            self.client.images.pull(self.image)
-
         # Create container with strict resource limits and NO network
         self.container = self.client.containers.run(
             self.image,

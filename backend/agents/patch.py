@@ -34,30 +34,6 @@ class PatchAgent:
         )
         self.structured_llm = self.llm.with_structured_output(PatchResponse)
         
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an Expert Software Engineer fixing a bug.
-Your job is to generate a precise code patch to fix the identified root cause.
-You MUST follow the rule: "smallest change that fixes the root cause over rewriting the whole component."
-
-Use the Search & Replace format. The `original_snippet` MUST exactly match the text in the file, including all leading whitespace, newlines, and indentation.
-
-Bug Context:
-Type: {bug_type}
-Issue: {observed_behavior}
-
-Confirmed Root Cause:
-{root_cause_explanation}
-
-Below is the conversation history of the Investigation Agent, which contains the tool outputs (including the file contents).
-Read the file contents carefully to ensure your `original_snippet` matches EXACTLY.
-"""),
-            ("human", "Conversation History:\n{history}\n\nGenerate the patch.")
-        ])
-        
-    def generate_patch(self, request: InvestigationRequest, root_cause: Evaluation, history_messages: List[BaseMessage]) -> PatchResponse:
-        # We format the chat history so the LLM can read the file contents that were searched
-        formatted_history = "\n".join([f"{msg.type.upper()}: {msg.content}" for msg in history_messages])
-        
         # We format the root cause explanation
         rc_explanation = "\n".join(root_cause.supporting_evidence)
         
