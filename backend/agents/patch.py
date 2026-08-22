@@ -34,10 +34,41 @@ class PatchAgent:
         )
         self.structured_llm = self.llm.with_structured_output(PatchResponse)
         
+    def generate_patch(self, request: InvestigationRequest, root_cause: Evaluation, history_messages: List[BaseMessage], previous_failures: List[str] = None) -> PatchResponse:
+        system_prompt = """You are an Expert Software Engineer fixing a bug.
+Your job is to generate a precise code patch to fix the identified root cause.
+You MUST follow the rule: "smallest change that fixes the root cause over rewriting the whole component."
+
+Use the Search & Replace format. The `original_snippet` MUST exactly match the text in the file, including all leading whitespace, newlines, and indentation.
+
+Bug Context:
+Type: {bug_type}
+Issue: {observed_behavior}
+
+Confirmed Root Cause:
+{root_cause_explanation}
+
+Below is the conversation history of the Investigation Agent, which contains the tool outputs (including the file contents).
+Read the file contents carefully to ensure your `original_snippet` matches EXACTLY.
+"""
+        if previous_failures:
+            system_prompt += "\nWARNING: Your previous attempts to patch this bug FAILED validation.\n"
+            system_prompt += "Here are the errors from your previous attempts:\n"
+            system_prompt += "\n---\n".join(previous_failures)
+            system_prompt += "\n\nYou MUST analyze these failures and provide a DIFFERENT, corrected patch that fixes these errors.\n"
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "Conversation History:\n{history}\n\nGenerate the patch.")
+        ])
+        
+        # We format the chat history so the LLM can read the file contents that were searched
+        formatted_history = "\n".join([f"{msg.type.upper()}: {msg.content}" for msg in history_messages])
+        
         # We format the root cause explanation
         rc_explanation = "\n".join(root_cause.supporting_evidence)
         
-        chain = self.prompt | self.structured_llm
+        chain = prompt | self.structured_llm
         result = chain.invoke({
             "bug_type": request.bug_type,
             "observed_behavior": request.observed_behavior,
