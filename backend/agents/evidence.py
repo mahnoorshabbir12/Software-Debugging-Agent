@@ -80,6 +80,7 @@ class EvidenceGraph:
             sys_msg = SystemMessage(content=f"""You are an Evidence Gathering Agent.
 Your job is to execute the following Investigation Plan to find Expected Evidence in the codebase.
 Use your tools to search the code.
+If you cannot find the answer in the local codebase or git history, use `web_search` and `fetch_webpage` to check external documentation or GitHub issues.
 If you have gathered enough information, or if you can't find anything after a few tries, DO NOT CALL ANY TOOLS.
 
 Hypothesis: {state['hypothesis'].title}

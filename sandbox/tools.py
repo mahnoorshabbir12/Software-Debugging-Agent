@@ -4,6 +4,7 @@ import subprocess
 from typing import Optional, List
 from pathlib import Path
 from langchain_core.tools import tool
+from sandbox.web_tools import web_search, fetch_webpage
 
 from ingestion.scanner import RepositoryAnalyzer
 from ingestion.embedder import SentenceTransformerEmbedder, BM25SparseEmbedder
@@ -178,5 +179,6 @@ def search_commits(query: str, path: str = ".") -> str:
 # Export the tools for the agent to use
 AGENT_TOOLS = [
     get_repository_map, search_code, read_file, list_files,
-    git_log, git_diff, git_show, git_blame, search_commits
+    git_log, git_diff, git_show, git_blame, search_commits,
+    web_search, fetch_webpage
 ]
