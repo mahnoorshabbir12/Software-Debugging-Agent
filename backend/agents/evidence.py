@@ -137,12 +137,21 @@ Hypothesis: {state['hypothesis'].title}
         
     def run(self, hypothesis: Hypothesis, thread_id: str = "default_thread") -> EvidenceState:
         """
-        Executes the graph for a single hypothesis.
+        Executes or resumes the graph for a single hypothesis.
         """
         config = {"configurable": {"thread_id": thread_id}}
-        final_state = self.app.invoke({
-            "hypothesis": hypothesis,
-            "messages": [],
-            "loop_count": 0
-        }, config=config)
+        
+        # Check if it's already paused
+        snapshot = self.app.get_state(config)
+        if snapshot.next:
+            # Resume execution without passing initial inputs
+            final_state = self.app.invoke(None, config=config)
+        else:
+            # Start fresh
+            final_state = self.app.invoke({
+                "hypothesis": hypothesis,
+                "messages": [],
+                "loop_count": 0
+            }, config=config)
+            
         return final_state
