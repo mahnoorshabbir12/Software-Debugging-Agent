@@ -7,6 +7,9 @@ from backend.agents.hypothesis import HypothesisAgent, Hypothesis
 from backend.agents.evidence import EvidenceGraph, Evaluation
 from backend.agents.patch import PatchAgent, FilePatch
 from backend.validator import Validator, ValidationResult
+from backend.database.core import get_session, engine
+from sqlmodel import Session
+from backend.database.models import Investigation, Hypothesis as DBHypothesis, Patch as DBPatch, TestRun
 
 class SupervisorState(TypedDict):
     """
@@ -15,12 +18,15 @@ class SupervisorState(TypedDict):
     bug_report: str
     project_root: str
     triage_request: Optional[InvestigationRequest]
+    investigation_db_id: Optional[int]
     hypotheses: List[Hypothesis]
+    hypothesis_db_ids: List[int]
     current_hypothesis_index: int
     final_root_cause: Optional[Evaluation]
     
     # Patch and Validation state
     patches: List[FilePatch]
+    patch_db_ids: List[int]
     patch_attempts: int
     validation_failures: List[str]
     validation_result: Optional[ValidationResult]
@@ -41,12 +47,41 @@ class SupervisorGraph:
         
     def _triage_node(self, state: SupervisorState) -> dict:
         request = self.triage_agent.triage(state["bug_report"])
-        return {"triage_request": request, "patch_attempts": 0, "validation_failures": []}
+        
+        # Save to DB
+        with Session(engine) as session:
+            inv = Investigation(bug_report=state["bug_report"], status="investigating")
+            session.add(inv)
+            session.commit()
+            session.refresh(inv)
+            inv_id = inv.id
+            
+        return {
+            "triage_request": request, 
+            "investigation_db_id": inv_id,
+            "patch_attempts": 0, 
+            "validation_failures": []
+        }
         
     def _hypothesis_node(self, state: SupervisorState) -> dict:
         hypo_list = self.hypothesis_agent.generate_hypotheses(state["triage_request"])
+        
+        db_ids = []
+        with Session(engine) as session:
+            for hypo in hypo_list.hypotheses:
+                db_hypo = DBHypothesis(
+                    investigation_id=state["investigation_db_id"],
+                    title=hypo.title,
+                    description=hypo.description
+                )
+                session.add(db_hypo)
+                session.commit()
+                session.refresh(db_hypo)
+                db_ids.append(db_hypo.id)
+                
         return {
             "hypotheses": hypo_list.hypotheses,
+            "hypothesis_db_ids": db_ids,
             "current_hypothesis_index": 0
         }
         
@@ -91,13 +126,49 @@ class SupervisorGraph:
             previous_failures=state.get("validation_failures", [])
         )
         
+        db_ids = []
+        with Session(engine) as session:
+            for p in patch_response.patches:
+                db_patch = DBPatch(
+                    hypothesis_id=state["hypothesis_db_ids"][idx],
+                    file_path=p.file_path,
+                    original_snippet=p.original_snippet,
+                    new_snippet=p.new_snippet
+                )
+                session.add(db_patch)
+                session.commit()
+                session.refresh(db_patch)
+                db_ids.append(db_patch.id)
+        
         attempts = state.get("patch_attempts", 0) + 1
-        return {"patches": patch_response.patches, "patch_attempts": attempts}
+        return {"patches": patch_response.patches, "patch_db_ids": db_ids, "patch_attempts": attempts}
         
     def _validate_node(self, state: SupervisorState) -> dict:
         """Validates the generated patch."""
         validator = Validator(project_root=state["project_root"])
         result = validator.validate_patch(state["patches"])
+        
+        with Session(engine) as session:
+            # For simplicity, we just link the test run to the first patch of this attempt
+            patch_id = state["patch_db_ids"][0] if state.get("patch_db_ids") else None
+            if patch_id:
+                db_test = TestRun(
+                    patch_id=patch_id,
+                    passed=result.passed,
+                    test_output=result.test_output,
+                    lint_output=result.lint_output,
+                    type_output=result.type_output
+                )
+                session.add(db_test)
+                
+                # If passed, update investigation status
+                if result.passed:
+                    inv = session.get(Investigation, state["investigation_db_id"])
+                    if inv:
+                        inv.status = "resolved"
+                        inv.final_patch_id = patch_id
+                
+                session.commit()
         
         failures = state.get("validation_failures", [])
         if not result.passed:
