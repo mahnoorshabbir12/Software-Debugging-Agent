@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.checkpoint.memory import MemorySaver
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from backend.agents.hypothesis import Hypothesis
@@ -43,6 +44,7 @@ class EvidenceGraph:
         # We also need an LLM specifically bound to our Evaluation schema for the final step
         self.llm_evaluator = self.llm.with_structured_output(Evaluation)
         
+        self.memory = MemorySaver()
         self.app = self._build_graph()
 
     def _build_graph(self):
@@ -66,7 +68,8 @@ class EvidenceGraph:
         # Evaluate is the end
         workflow.add_edge("evaluate", END)
         
-        return workflow.compile()
+        # Compile with checkpointer and interrupt before executing tools
+        return workflow.compile(checkpointer=self.memory, interrupt_before=["tools"])
         
     def _investigate_node(self, state: EvidenceState):
         """
@@ -131,13 +134,14 @@ Hypothesis: {state['hypothesis'].title}
         eval_result = self.llm_evaluator.invoke([sys_msg] + state["messages"])
         return {"evaluation": eval_result}
         
-    def run(self, hypothesis: Hypothesis) -> EvidenceState:
+    def run(self, hypothesis: Hypothesis, thread_id: str = "default_thread") -> EvidenceState:
         """
         Executes the graph for a single hypothesis.
         """
+        config = {"configurable": {"thread_id": thread_id}}
         final_state = self.app.invoke({
             "hypothesis": hypothesis,
             "messages": [],
             "loop_count": 0
-        })
+        }, config=config)
         return final_state

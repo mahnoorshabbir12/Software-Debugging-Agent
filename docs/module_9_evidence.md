@@ -26,5 +26,18 @@ class Evaluation(BaseModel):
 ### The Power of "UNCERTAIN"
 By explicitly giving the LLM the `UNCERTAIN` option in our literal types, and instructing it in the prompt ("If you didn't find strong evidence either way, choose UNCERTAIN"), we dramatically reduce hallucination. The LLM is no longer forced to guess; it can safely admit it needs more information.
 
+## 3. Stateful Graph Execution with MemorySaver
+
+To make our agent loop safe and pause-able, we integrated LangGraph's `MemorySaver`.
+
+**What is it?**
+`MemorySaver` is a checkpointer that persists the graph's state (the `EvidenceState`) at every node execution. It allows the graph to remember its history across sessions and pause execution mid-flight.
+
+**Why we need it here:**
+While our current tools are read-only (`search_code`), future modules will introduce destructive tools (like writing files or modifying git history). By using `MemorySaver` combined with `interrupt_before=["tools"]` when compiling the graph, we create a **Human-in-the-Loop** checkpoint. The agent will automatically pause and ask for human permission before running any tool, preventing disastrous autonomous actions.
+
+**Where it lives:**
+It is initialized in `backend/agents/evidence.py` and passed into `workflow.compile(checkpointer=self.memory, interrupt_before=["tools"])`. When we run the graph, we pass a `thread_id` to uniquely identify the session's memory.
+
 ## Next Steps
 Now that the agent can retrieve code to prove its hypotheses, we need to give it historical context. In **Module 10**, we will add Git tools so the agent can check *when* a bug was introduced.

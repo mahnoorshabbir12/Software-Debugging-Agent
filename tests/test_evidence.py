@@ -45,3 +45,27 @@ def test_evidence_graph_initialization():
             os.environ["OPENROUTER_API_KEY"] = original
         else:
             del os.environ["OPENROUTER_API_KEY"]
+
+def test_evidence_graph_memory():
+    """
+    Test that EvidenceGraph uses MemorySaver for persistent state tracking.
+    """
+    import os
+    from langgraph.checkpoint.memory import MemorySaver
+    
+    original = os.environ.get("OPENROUTER_API_KEY")
+    os.environ["OPENROUTER_API_KEY"] = "test_key"
+    
+    try:
+        graph = EvidenceGraph()
+        assert hasattr(graph, "memory")
+        assert isinstance(graph.memory, MemorySaver)
+        
+        # Test if it runs without crashing by instantiating the graph
+        assert graph.app is not None
+    finally:
+        if original:
+            os.environ["OPENROUTER_API_KEY"] = original
+        else:
+            if "OPENROUTER_API_KEY" in os.environ:
+                del os.environ["OPENROUTER_API_KEY"]
