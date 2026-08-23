@@ -338,5 +338,14 @@ def version():
     """
     typer.echo("0.1.0")
 
+@app.command()
+def serve(port: int = typer.Option(8000, help="Port to run the FastAPI server on.")):
+    """
+    Start the FastAPI backend server for the Autonomous Debugging Agent.
+    """
+    import uvicorn
+    typer.echo(f"Starting server on port {port}...")
+    uvicorn.run("apps.api.server:app", host="0.0.0.0", port=port, reload=True)
+
 if __name__ == "__main__":
     app()

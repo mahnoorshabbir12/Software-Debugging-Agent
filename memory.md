@@ -17,14 +17,15 @@ This file serves as my internal memory to track what I have accomplished so far,
 - **Module 11 (Web Research):** Integrated DuckDuckGo search so the agent can look up error messages or docs.
 - **Module 12 (Supervisor Orchestrator):** Refactored the architecture so a Master Supervisor routes tasks (Investigate, Patch) to specialized Subgraphs.
 
-**Phase 3: Execution & Validation (Modules 13-15)**
+**Phase 3: Execution, Validation & State (Modules 13-17)**
 - **Module 13 (Patch Generation):** Created `backend/patcher.py` to safely apply Search & Replace patches without relying on fragile unified diffs.
 - **Module 14 (Docker Sandbox):** Implemented `backend/sandbox.py` using `docker` Python SDK to run untrusted code with zero network access and strict memory/CPU limits.
 - **Module 15 (Automated Validation):** Built `backend/validator.py` which copies the project to a temp directory, patches it, spins up the Sandbox, and runs a mini-CI pipeline (`ruff`, `mypy`, `pytest`) to objectively prove if the LLM's fix worked.
+- **Module 16 (Self-Correction Loop):** Wired the orchestrator to automatically retry if validation fails. The agent reads test failure logs to update its hypothesis and submit a new patch, bounded by a circuit breaker to avoid infinite loops.
+- **Module 17 (Persistent Agent State):** Transitioned the agent's memory to a persistent PostgreSQL database using SQLModel and Alembic, allowing long-running state to survive restarts and be queried.
 
 ## Current Module Plan
-- **Module 16 - Self-Correction Loop:** We are wiring the orchestrator to automatically retry if the `ValidationResult` from Module 15 is a failure. The agent will read the test failure logs, update its hypothesis, and submit a new patch.
+- **Module 18 - Final Integration:** Building a FastAPI backend and React frontend to provide a rich UI for developers to interact with the agent and view its persistent state.
 
 ## Future Roadmap (High-level)
-1. **Module 17+:** Final Integration (FastAPI backend and React frontend) to provide a rich UI for developers to interact with the agent.
-2. **Polishing:** Enhancing error handling and telemetry (LangSmith) across the stack.
+1. **Polishing:** Enhancing error handling and telemetry (LangSmith) across the stack.

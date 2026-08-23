@@ -8,24 +8,31 @@ class Repository(SQLModel, table=True):
     url: str
     default_branch: str = "main"
 
-class Investigation(SQLModel, table=True):
+class DebugSession(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     repository_id: Optional[int] = Field(default=None, foreign_key="repository.id")
-    bug_report: str
-    status: str = Field(default="pending") # pending, investigating, patching, resolved, failed
+    branch: str = Field(default="main")
+    bug_report: str = Field(default="")
+    status: str = Field(default="idle") # idle, starting, running, paused, stopping, stopped, completed, failed
+    current_step: Optional[str] = None
+    current_action: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = None
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+    error: Optional[str] = None
     final_patch_id: Optional[int] = None
     
-    hypotheses: List["Hypothesis"] = Relationship(back_populates="investigation")
+    hypotheses: List["Hypothesis"] = Relationship(back_populates="debug_session")
 
 class Hypothesis(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    investigation_id: int = Field(foreign_key="investigation.id")
+    debug_session_id: int = Field(foreign_key="debugsession.id")
     title: str
     description: str
     status: str = Field(default="untested") # untested, supported, refuted
     
-    investigation: Investigation = Relationship(back_populates="hypotheses")
+    debug_session: DebugSession = Relationship(back_populates="hypotheses")
     evidence: List["Evidence"] = Relationship(back_populates="hypothesis")
     patches: List["Patch"] = Relationship(back_populates="hypothesis")
 
@@ -61,7 +68,7 @@ class TestRun(SQLModel, table=True):
 
 class ToolCall(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    investigation_id: int = Field(foreign_key="investigation.id")
+    debug_session_id: int = Field(foreign_key="debugsession.id")
     node: str # e.g. 'investigate', 'patch'
     tool_name: str
     args_json: str
