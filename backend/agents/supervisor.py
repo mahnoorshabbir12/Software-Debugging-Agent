@@ -95,9 +95,9 @@ class SupervisorGraph:
         current_hypo = hypotheses[idx]
         
         subgraph_thread = f"supervisor_thread_{idx}"
-        evidence_state = self.evidence_graph.run(current_hypo, thread_id=subgraph_thread)
+        evidence_state = self.evidence_graph.run(current_hypo, project_root=state["project_root"], thread_id=subgraph_thread)
         
-        snapshot = self.evidence_graph.app.get_state({"configurable": {"thread_id": subgraph_thread}})
+        snapshot = self.evidence_graph.app.get_state({"configurable": {"thread_id": subgraph_thread, "project_root": state["project_root"]}})
         if snapshot.next:
             from langgraph.errors import NodeInterrupt
             raise NodeInterrupt("Child graph paused waiting for tools")
@@ -250,5 +250,5 @@ class SupervisorGraph:
         return workflow.compile(checkpointer=self.memory)
         
     def run(self, bug_report: str, project_root: str, thread_id: str = "default_supervisor") -> dict:
-        config = {"configurable": {"thread_id": thread_id}}
+        config = {"configurable": {"thread_id": thread_id, "project_root": project_root}}
         return self.app.invoke({"bug_report": bug_report, "project_root": project_root}, config=config)
