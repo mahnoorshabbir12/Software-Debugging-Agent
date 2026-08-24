@@ -24,8 +24,20 @@ This file serves as my internal memory to track what I have accomplished so far,
 - **Module 16 (Self-Correction Loop):** Wired the orchestrator to automatically retry if validation fails. The agent reads test failure logs to update its hypothesis and submit a new patch, bounded by a circuit breaker to avoid infinite loops.
 - **Module 17 (Persistent Agent State):** Transitioned the agent's memory to a persistent PostgreSQL database using SQLModel and Alembic, allowing long-running state to survive restarts and be queried.
 
+**Phase 4: Application Layer (Modules 18-20)**
+- **Module 18 (FastAPI Backend):** Exposed the agent over REST (`apps/api/`), decoupling API schemas from DB models and using dependency injection for DB sessions.
+- **Module 19 (Real-Time Events):** Added SSE streaming (`backend/agents/events.py`, `/investigations/{id}/events`) bridging the sync background runner to the asyncio loop, plus pause/resume/stop/retry controls.
+- **Module 20 (React Dashboard):** Built the Vite + React + TS frontend (`frontend/`) with Dashboard, Repositories, and Investigations views over the API.
+
+**Phase 5: Observability (Module 21)**
+- **Module 21 (Agent Observability):** Added `backend/observability/` — a self-hosted tracing layer built on a LangChain `TracingCallbackHandler` attached via a new shared LLM factory (`backend/llm.py`, `traced_config()`), so LLM calls, tool calls, and LangGraph node transitions across all four agents are captured as spans. Spans fan out to pluggable sinks: structured `structlog` JSON logs, a persistent `SpanEvent` table (with token→cost estimation), and a live SSE stream reusing the Module 19 dispatcher. Exposed via `/investigations/{id}/traces`, `/investigations/{id}/metrics`, and `/observability/overview`, surfaced in a React "Observability" tab and a Dashboard health card. Optional LangSmith tracing via env toggle.
+
 ## Current Module Plan
-- **Module 18 - Final Integration:** Building a FastAPI backend and React frontend to provide a rich UI for developers to interact with the agent and view its persistent state.
+- **Module 22 - Evaluation Framework:** Build a benchmark of known bugs and measure retrieval (Recall@K, MRR), root-cause accuracy, patch success rate, and efficiency (iterations, tokens, cost) using the Module 21 metrics.
+
+## Known integration debt
+- The API still executes the *simulated* `backend/agents/runner.py` (hardcoded steps), and `backend/agents/supervisor.py` imports a renamed model (`Investigation` vs the current `DebugSession`), so `test_supervisor*.py` fail to import. Wiring the real `SupervisorGraph` into the runner (and reconciling the models/migration drift) is the prerequisite for observing the full pipeline end-to-end through the API. The observability layer already attaches at the LLM/tool/graph seams, so it will light up automatically once that integration lands.
 
 ## Future Roadmap (High-level)
-1. **Polishing:** Enhancing error handling and telemetry (LangSmith) across the stack.
+1. **Evaluation & Security:** Module 22 (evaluation), Module 23 (prompt-injection defense).
+2. **Polishing:** Enhancing error handling and telemetry (LangSmith) across the stack.
