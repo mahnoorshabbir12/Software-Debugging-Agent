@@ -20,6 +20,7 @@ class DebugSessionCreate(BaseModel):
 class DebugSessionResponse(BaseModel):
     id: int
     repository_id: int
+    repository_name: Optional[str] = None
     branch: str
     bug_report: str
     status: str

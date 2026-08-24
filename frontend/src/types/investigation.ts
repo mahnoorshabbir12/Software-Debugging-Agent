@@ -56,23 +56,24 @@ export interface SuggestedFix {
 
 export interface DebugSession {
   id: string;
-  repositoryId: string;
-  repositoryName: string;
+  repository_id: number;
+  repository_name: string | null;
   branch: string;
   
   status: AgentStatus;
   
-  currentStep: InvestigationStep | null;
-  currentAction: string | null;
+  current_step: InvestigationStep | null;
+  current_action: string | null;
   
-  startedAt: string | null;
-  completedAt: string | null;
+  started_at: string | null;
+  completed_at: string | null;
   
-  findings: Finding[];
-  evidence: Evidence[];
-  timeline: InvestigationEvent[];
+  // Frontend-only fields (populated by SSE events / context)
+  findings?: Finding[];
+  evidence?: Evidence[];
+  timeline?: InvestigationEvent[];
   
-  error?: DebugError;
+  error?: string | DebugError;
   diagnosis?: Diagnosis;
   suggestedFix?: SuggestedFix;
 }

@@ -6,6 +6,7 @@ from backend.database.core import get_session
 from backend.database.models import DebugSession, Evidence, Patch, Repository
 from backend.agents.controller import AgentController
 from backend.agents.events import EventDispatcher
+from backend.agents.runner import run_investigation
 from sse_starlette.sse import EventSourceResponse
 from apps.api.schemas import (
     DebugSessionCreate,
@@ -20,13 +21,20 @@ router = APIRouter(
     tags=["Investigations"],
 )
 
+def _enrich_investigation(investigation: DebugSession, session: Session) -> dict:
+    """Adds repository_name to a DebugSession for the API response."""
+    data = investigation.model_dump() if hasattr(investigation, 'model_dump') else investigation.dict()
+    repo = session.get(Repository, investigation.repository_id)
+    data["repository_name"] = repo.name if repo else None
+    return data
+
 @router.get("/", response_model=List[DebugSessionResponse])
 def list_investigations(session: Session = Depends(get_session)):
     """
     List all debug sessions.
     """
     investigations = session.exec(select(DebugSession)).all()
-    return investigations
+    return [_enrich_investigation(inv, session) for inv in investigations]
 
 @router.post("/", response_model=DebugSessionResponse, status_code=201)
 def create_investigation(
@@ -52,10 +60,10 @@ def create_investigation(
     session.commit()
     session.refresh(investigation)
     
-    # In a real app, we would use background_tasks to start the LangGraph investigation here.
-    # background_tasks.add_task(start_investigation, investigation.id)
+    # Start the investigation pipeline in a background thread
+    background_tasks.add_task(run_investigation, investigation.id)
     
-    return investigation
+    return _enrich_investigation(investigation, session)
 
 @router.get("/{id}", response_model=DebugSessionResponse)
 def get_investigation(id: int, session: Session = Depends(get_session)):
@@ -65,7 +73,7 @@ def get_investigation(id: int, session: Session = Depends(get_session)):
     investigation = session.get(DebugSession, id)
     if not investigation:
         raise HTTPException(status_code=404, detail="Investigation not found")
-    return investigation
+    return _enrich_investigation(investigation, session)
 
 @router.get("/{id}/events")
 def get_investigation_events(id: int):

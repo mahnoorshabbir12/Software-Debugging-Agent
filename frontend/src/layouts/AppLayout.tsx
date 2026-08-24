@@ -47,7 +47,7 @@ export const AppLayout: React.FC = () => {
           <div className="workspace-title">
             {session ? (
               <span className="flex items-center gap-2">
-                <span className="font-semibold text-primary">{session.repositoryName || `Repo #${session.repositoryId}`}</span>
+              <span className="font-semibold text-primary">{session.repository_name || `Repo #${session.repository_id}`}</span>
                 <span className="text-muted">/</span>
                 <span className="text-secondary">{session.branch || 'main'}</span>
                 {loading && <span className="ml-2 badge badge-warning">Loading...</span>}

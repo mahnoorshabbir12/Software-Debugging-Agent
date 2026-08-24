@@ -6,8 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/repositories': 'http://localhost:8000',
-      '/investigations': 'http://localhost:8000',
+      '/api': {
+        target: 'http://localhost:8001',
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      }
     }
   }
 })

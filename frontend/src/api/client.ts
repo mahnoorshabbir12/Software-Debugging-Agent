@@ -1,4 +1,4 @@
-export const API_BASE = ''; // proxied
+export const API_BASE = '/api'; // proxied to localhost:8000
 
 export interface Repository {
   id: number;

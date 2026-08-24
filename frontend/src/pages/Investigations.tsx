@@ -85,7 +85,7 @@ export const Investigations: React.FC = () => {
             </span>
             <span className="text-muted text-sm">Session #{session.id}</span>
           </div>
-          <h1>{session.error?.message || 'Investigating Repository'}</h1>
+          <h1>{typeof session.error === 'string' ? session.error : session.error?.message || 'Investigating Repository'}</h1>
         </div>
         <div className="flex gap-2">
           {session.status === 'running' || session.status === 'starting' ? (
@@ -130,8 +130,8 @@ export const Investigations: React.FC = () => {
                   <div>
                     <h3 className="mb-2">Error Details</h3>
                     <div className="code-block error-block">
-                      {session.error.message}
-                      {session.error.details && `\n${session.error.details}`}
+                      {typeof session.error === 'string' ? session.error : session.error.message}
+                      {typeof session.error !== 'string' && session.error.details && `\n${session.error.details}`}
                     </div>
                   </div>
                 ) : (
@@ -149,11 +149,11 @@ export const Investigations: React.FC = () => {
                   </div>
                 )}
                 
-                {!session.diagnosis && session.currentStep && (
+                {!session.diagnosis && session.current_step && (
                   <div>
                     <h3 className="mb-2">Current Step</h3>
-                    <p className="text-secondary">{session.currentStep.replace('_', ' ')}</p>
-                    {session.currentAction && <p className="text-muted text-sm mt-1">{session.currentAction}</p>}
+                    <p className="text-secondary">{session.current_step.replace('_', ' ')}</p>
+                    {session.current_action && <p className="text-muted text-sm mt-1">{session.current_action}</p>}
                   </div>
                 )}
               </div>
@@ -199,8 +199,17 @@ export const Investigations: React.FC = () => {
         <aside className="agent-panel glass-panel">
           <div className="agent-header">
             <h3>Agent Activity</h3>
-            <span className="badge badge-success flex items-center gap-1">
-              <span className="status-dot"></span> Active
+            <span className={`badge flex items-center gap-1 ${
+              session.status === 'running' || session.status === 'starting' ? 'badge-success' :
+              session.status === 'completed' ? 'badge-success' :
+              session.status === 'failed' ? 'badge-error' : 'badge-warning'
+            }`}>
+              <span className="status-dot"></span>
+              {session.status === 'running' || session.status === 'starting' ? 'Active' :
+               session.status === 'completed' ? 'Completed' :
+               session.status === 'failed' ? 'Failed' :
+               session.status === 'stopped' ? 'Stopped' :
+               session.status === 'paused' ? 'Paused' : session.status}
             </span>
           </div>
           <div className="timeline">
@@ -217,7 +226,7 @@ export const Investigations: React.FC = () => {
               <div className="timeline-item active">
                 <div className="timeline-icon pulse"><Play className="w-3 h-3" /></div>
                 <div className="timeline-content">
-                  <div className="desc text-primary font-medium">{session.currentAction || 'Agent thinking...'}</div>
+                  <div className="desc text-primary font-medium">{session.current_action || 'Agent thinking...'}</div>
                 </div>
               </div>
             )}

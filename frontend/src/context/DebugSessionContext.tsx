@@ -40,21 +40,40 @@ export const DebugSessionProvider: React.FC<{ children: ReactNode }> = ({ childr
       client.connect();
       setConnected(true);
       
-      client.subscribe((event: InvestigationEvent) => {
+      client.subscribe((event: any) => {
         setSession(prev => {
           if (!prev) return prev;
           
-          // Handle different event types to update the session projection
           const updatedSession = { ...prev };
           updatedSession.timeline = [...(prev.timeline || []), event];
           
           if (event.type === 'step.started' && event.step) {
-            updatedSession.currentStep = event.step;
-            updatedSession.currentAction = event.message;
+            updatedSession.current_step = event.step;
+            updatedSession.current_action = event.message;
+            updatedSession.status = 'running' as any;
           }
+          
+          if (event.type === 'step.completed') {
+            updatedSession.current_action = event.message;
+          }
+          
           if (event.type === 'agent.status') {
-            // Assume the backend sends status updates this way
-            // or we just poll or derive it
+            // Determine the new status from the message
+            if (event.message.includes('completed')) {
+              updatedSession.status = 'completed' as any;
+              updatedSession.current_step = null;
+              updatedSession.current_action = null;
+            } else if (event.message.includes('stopped')) {
+              updatedSession.status = 'stopped' as any;
+              updatedSession.current_step = null;
+              updatedSession.current_action = null;
+            } else if (event.message.includes('failed')) {
+              updatedSession.status = 'failed' as any;
+              updatedSession.current_step = null;
+              updatedSession.current_action = null;
+            } else if (event.message.includes('started')) {
+              updatedSession.status = 'running' as any;
+            }
           }
 
           return updatedSession;
