@@ -1,9 +1,9 @@
-import os
 from typing import List
 from pydantic import BaseModel, Field
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from backend.agents.triage import InvestigationRequest
+from backend.llm import build_llm, traced_config
+from backend.observability.context import correlation_scope
 
 class Hypothesis(BaseModel):
     """
@@ -27,11 +27,9 @@ class HypothesisAgent:
     plausible root causes (hypotheses) before any code is actually searched.
     """
     def __init__(self, model_name: str = "meta-llama/llama-3.1-8b-instruct"):
-        self.llm = ChatOpenAI(
-            model=model_name,
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.environ.get("OPENROUTER_API_KEY", ""),
-            temperature=0.7 # Higher temperature encourages more creative divergent thinking
+        self.llm = build_llm(
+            model_name=model_name,
+            temperature=0.7,  # Higher temperature encourages more creative divergent thinking
         )
         
         self.structured_llm = self.llm.with_structured_output(HypothesisList)
@@ -60,13 +58,14 @@ Constraints: {constraints}
         """
         chain = self.prompt | self.structured_llm
         
-        result = chain.invoke({
-            "bug_type": request.bug_type,
-            "affected_endpoint": request.affected_endpoint or "Unknown",
-            "suspected_area": request.suspected_area,
-            "observed_behavior": request.observed_behavior,
-            "expected_behavior": request.expected_behavior,
-            "constraints": ", ".join(request.constraints) if request.constraints else "None"
-        })
+        with correlation_scope(node="hypothesis"):
+            result = chain.invoke({
+                "bug_type": request.bug_type,
+                "affected_endpoint": request.affected_endpoint or "Unknown",
+                "suspected_area": request.suspected_area,
+                "observed_behavior": request.observed_behavior,
+                "expected_behavior": request.expected_behavior,
+                "constraints": ", ".join(request.constraints) if request.constraints else "None"
+            }, config=traced_config())
         
         return result

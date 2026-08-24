@@ -1,8 +1,9 @@
-import os
 from typing import Optional, List
 from pydantic import BaseModel, Field
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+
+from backend.llm import build_llm, traced_config
+from backend.observability.context import correlation_scope
 
 class InvestigationRequest(BaseModel):
     """
@@ -21,13 +22,8 @@ class TriageAgent:
     Converts a messy, natural-language bug report into a structured InvestigationRequest.
     """
     def __init__(self, model_name: str = "meta-llama/llama-3.1-8b-instruct"):
-        # We use OpenRouter as our LLM provider
-        self.llm = ChatOpenAI(
-            model=model_name,
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.environ.get("OPENROUTER_API_KEY", ""),
-            temperature=0
-        )
+        # We use OpenRouter as our LLM provider (configured centrally in build_llm)
+        self.llm = build_llm(model_name=model_name, temperature=0)
         
         # Enforce the Pydantic schema
         self.structured_llm = self.llm.with_structured_output(InvestigationRequest)
@@ -48,5 +44,8 @@ Bug Report:
         Processes a bug report and returns a structured InvestigationRequest.
         """
         chain = self.prompt | self.structured_llm
-        result = chain.invoke({"bug_report": bug_report})
+        # correlation_scope(node=...) tags every span from this call as "triage";
+        # traced_config() attaches the observability tracer to the run.
+        with correlation_scope(node="triage"):
+            result = chain.invoke({"bug_report": bug_report}, config=traced_config())
         return result

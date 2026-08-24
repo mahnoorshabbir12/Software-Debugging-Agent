@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import type { DebugSession, InvestigationEvent } from '../types/investigation';
+import type { DebugSession } from '../types/investigation';
 import { getSession, stopSession, pauseSession, resumeSession, retrySession } from '../services/investigationApi';
 import { InvestigationEventsClient } from '../services/investigationEvents';
 

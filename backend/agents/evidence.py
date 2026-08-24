@@ -1,13 +1,12 @@
-import os
 from typing import TypedDict, Annotated, List, Literal
 from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from backend.agents.hypothesis import Hypothesis
+from backend.llm import build_llm, traced_config
 from sandbox.tools import AGENT_TOOLS
 
 class Evaluation(BaseModel):
@@ -31,12 +30,7 @@ class EvidenceGraph:
     and returns a structured Evaluation.
     """
     def __init__(self, model_name: str = "meta-llama/llama-3.1-8b-instruct"):
-        self.llm = ChatOpenAI(
-            model=model_name,
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.environ.get("OPENROUTER_API_KEY", ""),
-            temperature=0
-        )
+        self.llm = build_llm(model_name=model_name, temperature=0)
         
         # Bind the hybrid search tools to the LLM
         self.llm_with_tools = self.llm.bind_tools(AGENT_TOOLS)
@@ -139,7 +133,10 @@ Hypothesis: {state['hypothesis'].title}
         """
         Executes or resumes the graph for a single hypothesis.
         """
-        config = {"configurable": {"thread_id": thread_id}}
+        # traced_config attaches the observability tracer to the whole graph run.
+        # Because callbacks are set at the top level, LangGraph propagates them to
+        # every node, tool execution, and nested LLM call in this investigation.
+        config = traced_config(configurable={"thread_id": thread_id})
         
         # Check if it's already paused
         snapshot = self.app.get_state(config)

@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Activity, CheckCircle, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Activity, CheckCircle, AlertTriangle, Cpu, Wrench, DollarSign, Hash } from 'lucide-react';
+import { fetchObservabilityOverview } from '../api/client';
+import type { ObservabilityOverview } from '../api/client';
 import './Dashboard.css';
 
 export const Dashboard: React.FC = () => {
@@ -9,6 +11,14 @@ export const Dashboard: React.FC = () => {
     resolved: 96,
     critical: 3
   });
+
+  const [overview, setOverview] = useState<ObservabilityOverview | null>(null);
+
+  useEffect(() => {
+    fetchObservabilityOverview().then(setOverview).catch(console.error);
+  }, []);
+
+  const fmtCost = (c?: number) => (c == null ? '$0' : `$${c.toFixed(6)}`);
 
   return (
     <div className="dashboard-page">
@@ -45,6 +55,47 @@ export const Dashboard: React.FC = () => {
             <AlertTriangle className="icon-small text-error" />
           </div>
           <div className="stat-value">{stats.critical}</div>
+        </div>
+      </section>
+
+      <section className="observability-overview">
+        <h2>Agent Observability</h2>
+        <div className="stats-grid">
+          <div className="stat-card glass-panel">
+            <div className="stat-header">
+              <h3 className="text-muted">LLM Calls</h3>
+              <Cpu className="icon-small text-primary" />
+            </div>
+            <div className="stat-value">{overview?.llm_calls ?? 0}</div>
+          </div>
+          <div className="stat-card glass-panel">
+            <div className="stat-header">
+              <h3 className="text-muted">Tool Calls</h3>
+              <Wrench className="icon-small text-accent" />
+            </div>
+            <div className="stat-value">{overview?.tool_calls ?? 0}</div>
+          </div>
+          <div className="stat-card glass-panel">
+            <div className="stat-header">
+              <h3 className="text-muted">Total Tokens</h3>
+              <Hash className="icon-small text-secondary" />
+            </div>
+            <div className="stat-value">{overview?.total_tokens ?? 0}</div>
+          </div>
+          <div className="stat-card glass-panel">
+            <div className="stat-header">
+              <h3 className="text-muted">Est. Cost</h3>
+              <DollarSign className="icon-small text-success" />
+            </div>
+            <div className="stat-value">{fmtCost(overview?.total_cost_usd)}</div>
+          </div>
+          <div className="stat-card glass-panel">
+            <div className="stat-header">
+              <h3 className="text-muted">Agent Errors</h3>
+              <AlertTriangle className="icon-small text-error" />
+            </div>
+            <div className="stat-value">{overview?.errors ?? 0}</div>
+          </div>
         </div>
       </section>
 

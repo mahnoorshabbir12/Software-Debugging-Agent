@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play, CheckCircle, FileText, Pause, RotateCcw, Square, List as ListIcon } from 'lucide-react';
+import { Play, CheckCircle, FileText, Pause, RotateCcw, Square, List as ListIcon, Activity } from 'lucide-react';
 import { useDebugSession } from '../context/DebugSessionContext';
-import { fetchInvestigations } from '../api/client';
-import type { Investigation } from '../api/client';
+import { fetchInvestigations, fetchTraces, fetchSessionMetrics } from '../api/client';
+import type { Investigation, SpanEvent, SessionMetrics } from '../api/client';
 import { useNavigate } from 'react-router-dom';
 import './Investigations.css';
+
+const formatCost = (c?: number | null) => (c == null ? '-' : c === 0 ? '$0' : `$${c.toFixed(6)}`);
+const formatDuration = (ms?: number | null) => {
+  if (ms == null) return '-';
+  return ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${Math.round(ms)}ms`;
+};
 
 export const Investigations: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
@@ -16,6 +22,10 @@ export const Investigations: React.FC = () => {
   // State for the list view
   const [investigations, setInvestigations] = useState<Investigation[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+
+  // Observability tab state
+  const [traces, setTraces] = useState<SpanEvent[]>([]);
+  const [metrics, setMetrics] = useState<SessionMetrics | null>(null);
 
   useEffect(() => {
     if (sessionId) {
@@ -31,6 +41,20 @@ export const Investigations: React.FC = () => {
         .finally(() => setLoadingList(false));
     }
   }, [sessionId]);
+
+  // Load observability traces + metrics when the tab is open; poll while running.
+  useEffect(() => {
+    if (!sessionId || activeTab !== 'observability') return;
+    let cancelled = false;
+    const load = () => {
+      fetchTraces(sessionId).then(d => { if (!cancelled) setTraces(d); }).catch(console.error);
+      fetchSessionMetrics(sessionId).then(d => { if (!cancelled) setMetrics(d); }).catch(console.error);
+    };
+    load();
+    const isRunning = session?.status === 'running' || session?.status === 'starting';
+    const interval = isRunning ? window.setInterval(load, 4000) : undefined;
+    return () => { cancelled = true; if (interval) window.clearInterval(interval); };
+  }, [sessionId, activeTab, session?.status]);
 
   // Render list view if no sessionId
   if (!sessionId) {
@@ -121,6 +145,7 @@ export const Investigations: React.FC = () => {
             <button className={`tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>Overview</button>
             <button className={`tab ${activeTab === 'evidence' ? 'active' : ''}`} onClick={() => setActiveTab('evidence')}>Evidence</button>
             <button className={`tab ${activeTab === 'patch' ? 'active' : ''}`} onClick={() => setActiveTab('patch')}>Suggested Fix</button>
+            <button className={`tab ${activeTab === 'observability' ? 'active' : ''}`} onClick={() => setActiveTab('observability')}>Observability</button>
           </div>
 
           <div className="tab-content glass-panel p-6">
@@ -189,6 +214,84 @@ export const Investigations: React.FC = () => {
                     <p className="text-secondary">Generating patch...</p>
                     <div className="loading-bar"></div>
                   </>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'observability' && (
+              <div className="flex-col gap-6">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-primary" />
+                  <h3 className="m-0">Agent Telemetry</h3>
+                </div>
+
+                <div className="obs-metrics">
+                  <div className="obs-metric">
+                    <span className="obs-metric-label">LLM Calls</span>
+                    <span className="obs-metric-value">{metrics?.llm_calls ?? 0}</span>
+                  </div>
+                  <div className="obs-metric">
+                    <span className="obs-metric-label">Tool Calls</span>
+                    <span className="obs-metric-value">{metrics?.tool_calls ?? 0}</span>
+                  </div>
+                  <div className="obs-metric">
+                    <span className="obs-metric-label">Total Tokens</span>
+                    <span className="obs-metric-value">{metrics?.total_tokens ?? 0}</span>
+                  </div>
+                  <div className="obs-metric">
+                    <span className="obs-metric-label">Est. Cost</span>
+                    <span className="obs-metric-value">{formatCost(metrics?.total_cost_usd)}</span>
+                  </div>
+                  <div className="obs-metric">
+                    <span className="obs-metric-label">Errors</span>
+                    <span className={`obs-metric-value ${metrics && metrics.errors > 0 ? 'text-error' : ''}`}>
+                      {metrics?.errors ?? 0}
+                    </span>
+                  </div>
+                  <div className="obs-metric">
+                    <span className="obs-metric-label">Duration</span>
+                    <span className="obs-metric-value">{formatDuration(metrics?.total_duration_ms)}</span>
+                  </div>
+                </div>
+
+                {traces.length === 0 ? (
+                  <p className="text-muted">
+                    No spans recorded yet. Spans appear here as the agent makes LLM calls,
+                    runs tools, and transitions between graph nodes.
+                  </p>
+                ) : (
+                  <div className="obs-table-container">
+                    <table className="obs-table">
+                      <thead>
+                        <tr>
+                          <th>Kind</th>
+                          <th>Name</th>
+                          <th>Node</th>
+                          <th>Status</th>
+                          <th>Tokens</th>
+                          <th>Cost</th>
+                          <th>Duration</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {traces.map(s => (
+                          <tr key={s.id}>
+                            <td><span className={`badge obs-kind obs-kind-${s.kind}`}>{s.kind}</span></td>
+                            <td className="obs-mono">{s.tool_name || s.name}</td>
+                            <td className="text-muted">{s.node || '-'}</td>
+                            <td>
+                              {s.status === 'error'
+                                ? <span className="badge badge-error">error</span>
+                                : <span className="badge badge-success">ok</span>}
+                            </td>
+                            <td>{s.total_tokens ?? '-'}</td>
+                            <td>{formatCost(s.cost_usd)}</td>
+                            <td>{formatDuration(s.duration_ms)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )}
