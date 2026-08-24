@@ -37,7 +37,12 @@ def test_supervisor_edges():
     # If root cause found, go to patch
     state["current_hypothesis_index"] = 0
     from backend.agents.evidence import Evaluation
-    state["final_root_cause"] = Evaluation(status="SUPPORTED", supporting_evidence=[])
+    state["final_root_cause"] = Evaluation(
+        status="SUPPORTED", 
+        supporting_evidence=[], 
+        confidence_score=100, 
+        contradicting_evidence=[]
+    )
     assert supervisor._route_investigation(state) == "patch"
 
 def test_supervisor_validation_routing():

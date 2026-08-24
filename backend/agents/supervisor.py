@@ -9,7 +9,7 @@ from backend.agents.patch import PatchAgent, FilePatch
 from backend.validator import Validator, ValidationResult
 from backend.database.core import get_session, engine
 from sqlmodel import Session
-from backend.database.models import Investigation, Hypothesis as DBHypothesis, Patch as DBPatch, TestRun
+from backend.database.models import DebugSession, Hypothesis as DBHypothesis, Patch as DBPatch, TestRun
 
 class SupervisorState(TypedDict):
     """
@@ -18,7 +18,7 @@ class SupervisorState(TypedDict):
     bug_report: str
     project_root: str
     triage_request: Optional[InvestigationRequest]
-    investigation_db_id: Optional[int]
+    debug_session_id: Optional[int]
     hypotheses: List[Hypothesis]
     hypothesis_db_ids: List[int]
     current_hypothesis_index: int
@@ -50,7 +50,7 @@ class SupervisorGraph:
         
         # Save to DB
         with Session(engine) as session:
-            inv = Investigation(bug_report=state["bug_report"], status="investigating")
+            inv = DebugSession(bug_report=state["bug_report"], status="investigating")
             session.add(inv)
             session.commit()
             session.refresh(inv)
@@ -58,7 +58,7 @@ class SupervisorGraph:
             
         return {
             "triage_request": request, 
-            "investigation_db_id": inv_id,
+            "debug_session_id": inv_id,
             "patch_attempts": 0, 
             "validation_failures": []
         }
@@ -70,7 +70,7 @@ class SupervisorGraph:
         with Session(engine) as session:
             for hypo in hypo_list.hypotheses:
                 db_hypo = DBHypothesis(
-                    investigation_id=state["investigation_db_id"],
+                    debug_session_id=state["debug_session_id"],
                     title=hypo.title,
                     description=hypo.description
                 )
@@ -163,7 +163,7 @@ class SupervisorGraph:
                 
                 # If passed, update investigation status
                 if result.passed:
-                    inv = session.get(Investigation, state["investigation_db_id"])
+                    inv = session.get(DebugSession, state["debug_session_id"])
                     if inv:
                         inv.status = "resolved"
                         inv.final_patch_id = patch_id

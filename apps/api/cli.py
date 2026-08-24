@@ -347,5 +347,27 @@ def serve(port: int = typer.Option(8000, help="Port to run the FastAPI server on
     typer.echo(f"Starting server on port {port}...")
     uvicorn.run("apps.api.server:app", host="0.0.0.0", port=port, reload=True)
 
+@app.command()
+def evaluate(dataset_name: str = typer.Option("Debugger Benchmark", help="Name of the LangSmith dataset to evaluate.")):
+    """
+    Run the LangSmith evaluation framework for Module 22.
+    It executes the SupervisorGraph against the specified dataset and computes Retrieval, Reasoning, and Patch metrics.
+    """
+    from backend.evaluation.runner import run_evaluation
+    import os
+    from dotenv import load_dotenv
+    
+    load_dotenv()
+    
+    if not os.environ.get("LANGCHAIN_API_KEY"):
+        typer.echo("Error: LANGCHAIN_API_KEY environment variable is missing.", err=True)
+        typer.echo("Evaluation requires a LangSmith account and API key.", err=True)
+        return
+        
+    try:
+        run_evaluation(dataset_name=dataset_name)
+    except Exception as e:
+        typer.echo(f"Error running evaluation: {e}", err=True)
+
 if __name__ == "__main__":
     app()
