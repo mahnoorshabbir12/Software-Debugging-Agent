@@ -7,7 +7,13 @@ def test_get_repository_map():
     assert isinstance(res, str)
     assert "language" in res.lower()
     
-def test_search_code():
+from unittest.mock import patch, MagicMock
+
+@patch("sandbox.tools._get_indexer")
+@patch("sandbox.tools.retrieve_code")
+def test_search_code(mock_retrieve, mock_indexer):
+    mock_indexer.return_value = MagicMock()
+    mock_retrieve.return_value = [{"chunk_id": "test_chunk", "content": "class RepositoryAnalyzer:\n    pass"}]
     res = search_code.invoke({"query": "RepositoryAnalyzer", "path": ".", "top_k": 1, "project_root": "."})
     assert isinstance(res, str)
     # The JSON string should contain 'RepositoryAnalyzer'
