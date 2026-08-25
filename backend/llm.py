@@ -95,11 +95,17 @@ def _maybe_enable_langsmith() -> None:
         log.info("observability.langsmith_enabled", project=settings.langsmith_project)
 
 
+from langchain_core.globals import set_llm_cache
+from langchain_core.caches import InMemoryCache
+
+# Enable global caching for LLM calls to save tokens and time on duplicate queries
+set_llm_cache(InMemoryCache())
+
 def build_llm(
     model_name: str = DEFAULT_MODEL,
     temperature: float = 0.0,
     **kwargs,
-) -> ChatOpenAI:
+) -> Any:
     """
     Build a ChatOpenAI client wired to OpenRouter.
 
@@ -109,11 +115,14 @@ def build_llm(
     # Ensure settings (and thus .env) are loaded before we read the API key,
     # regardless of whether the caller configured logging first.
     get_observability_settings()
-    return ChatOpenAI(
+    llm = ChatOpenAI(
         model=model_name,
         base_url=OPENROUTER_BASE_URL,
         api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         temperature=temperature,
+        max_retries=3,
         **kwargs,
     )
+    
+    return llm
 

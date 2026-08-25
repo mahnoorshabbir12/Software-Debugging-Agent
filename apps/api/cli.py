@@ -390,5 +390,71 @@ def ingest_graph(path: str = "."):
     except Exception as e:
         typer.echo(f"Error during graph ingestion: {e}", err=True)
 
+@app.command()
+def ci_run(
+    issue_text: str = typer.Argument(..., help="The GitHub issue text or CI logs"),
+    project_root: str = typer.Option(".", help="Path to the repository"),
+    branch: str = typer.Option("autonomous-fix", help="Branch name to push the fix to"),
+    repo: str = typer.Option(None, help="Target GitHub repo (e.g. org/repo). Defaults to GITHUB_REPOSITORY env var.")
+):
+    """
+    Simulates a CI environment triggering the agent.
+    Runs the full Supervisor graph and creates a GitHub Pull Request upon successful validation.
+    """
+    from backend.agents.supervisor import SupervisorGraph
+    from sandbox.github_tools import create_pull_request
+    import os
+    import time
+    
+    target_repo = repo or os.environ.get("GITHUB_REPOSITORY")
+    
+    typer.echo(f"Starting CI/CD Agent Pipeline on project: {project_root}")
+    typer.echo(f"Issue: {issue_text}\n")
+    
+    if not os.environ.get("GITHUB_TOKEN") or not target_repo:
+        typer.echo("Warning: GITHUB_TOKEN or target repo not set. PR creation will fail. Pass --repo or set GITHUB_REPOSITORY.", err=True)
+    
+    start_time = time.time()
+    
+    try:
+        supervisor = SupervisorGraph()
+        typer.echo("Running Supervisor Graph...")
+        final_state = supervisor.run(bug_report=issue_text, project_root=project_root, thread_id="ci_run_thread")
+        
+        # Check if we got a validated patch
+        val_result = final_state.get("validation_result")
+        if val_result and val_result.passed:
+            typer.echo("SUCCESS: Agent generated a validated patch!")
+            
+            typer.echo("Committing changes and pushing to branch...")
+            import subprocess
+            subprocess.run(["git", "checkout", "-b", branch], cwd=project_root)
+            subprocess.run(["git", "add", "."], cwd=project_root)
+            subprocess.run(["git", "commit", "-m", f"Autonomous fix for: {issue_text[:30]}"], cwd=project_root)
+            
+            typer.echo(f"Creating GitHub Pull Request on {target_repo}...")
+            
+            # The tool uses the InjectedToolArg for project_root, but we can call the underlying function
+            # Since it's a LangChain tool, we can call it using .invoke
+            pr_response = create_pull_request.invoke({
+                "branch_name": branch,
+                "title": f"Autonomous Fix: {issue_text[:30]}",
+                "body": f"This is an automatically generated fix for the following issue:\n\n> {issue_text}\n\nThe patch has been validated against local tests and types.",
+                "target_repo": target_repo,
+                "project_root": project_root
+            })
+            
+            typer.echo(pr_response)
+        else:
+            typer.echo("FAILURE: Agent could not generate a passing patch after exhausting attempts.")
+            if final_state.get("validation_failures"):
+                typer.echo("Last failure: " + final_state["validation_failures"][-1])
+                
+    except Exception as e:
+        typer.echo(f"Error during CI run: {e}", err=True)
+        
+    elapsed = time.time() - start_time
+    typer.echo(f"\nPipeline finished in {elapsed:.2f} seconds.")
+
 if __name__ == "__main__":
     app()

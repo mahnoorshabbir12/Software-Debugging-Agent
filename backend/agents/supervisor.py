@@ -249,6 +249,9 @@ class SupervisorGraph:
         
         return workflow.compile(checkpointer=self.memory)
         
-    def run(self, bug_report: str, project_root: str, thread_id: str = "default_supervisor") -> dict:
-        config = {"configurable": {"thread_id": thread_id, "project_root": project_root}}
+    def run(self, bug_report: str, project_root: str, thread_id: str = "default_supervisor", recursion_limit: int = 50) -> dict:
+        config = {
+            "configurable": {"thread_id": thread_id, "project_root": project_root},
+            "recursion_limit": recursion_limit
+        }
         return self.app.invoke({"bug_report": bug_report, "project_root": project_root}, config=config)

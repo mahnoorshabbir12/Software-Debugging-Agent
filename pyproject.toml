@@ -37,6 +37,7 @@ dependencies = [
     "sse-starlette>=2.0.0",
     "structlog>=24.1.0",
     "neo4j>=5.10.0",
+    "PyGithub>=2.1.0",
     # AI dependencies to be added in later phases
     # "langchain>=0.1.0",
     # "langgraph>=0.0.26",
