@@ -3,12 +3,12 @@ import os
 
 def test_get_repository_map():
     # Use current directory
-    res = get_repository_map.invoke({"path": "."})
+    res = get_repository_map.invoke({"path": ".", "project_root": "."})
     assert isinstance(res, str)
     assert "language" in res.lower()
     
 def test_search_code():
-    res = search_code.invoke({"query": "RepositoryAnalyzer", "path": ".", "top_k": 1})
+    res = search_code.invoke({"query": "RepositoryAnalyzer", "path": ".", "top_k": 1, "project_root": "."})
     assert isinstance(res, str)
     # The JSON string should contain 'RepositoryAnalyzer'
     assert "RepositoryAnalyzer" in res
@@ -20,7 +20,7 @@ def test_read_file():
         f.write("Line 1\nLine 2\nLine 3\nLine 4\n")
     
     try:
-        res = read_file.invoke({"file_path": test_file, "start_line": 2, "end_line": 3})
+        res = read_file.invoke({"file_path": test_file, "start_line": 2, "end_line": 3, "project_root": "."})
         assert "2: Line 2" in res
         assert "3: Line 3" in res
         assert "1:" not in res
@@ -29,6 +29,6 @@ def test_read_file():
         os.remove(test_file)
 
 def test_list_files():
-    res = list_files.invoke({"directory_path": "."})
+    res = list_files.invoke({"directory_path": ".", "project_root": "."})
     assert isinstance(res, str)
     assert "pyproject.toml" in res

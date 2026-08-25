@@ -15,7 +15,7 @@ class MockEvidenceGraphPaused:
     def __init__(self):
         self.app = self.MockApp()
         
-    def run(self, hypothesis: Hypothesis, thread_id: str = "default_thread"):
+    def run(self, hypothesis: Hypothesis, project_root: str = ".", thread_id: str = "default_thread"):
         # Returns empty dict since it's paused
         return {}
 
@@ -42,7 +42,8 @@ def test_supervisor_raises_node_interrupt_on_subgraph_pause():
         "triage_request": None,
         "hypotheses": [hypo],
         "current_hypothesis_index": 0,
-        "final_root_cause": None
+        "final_root_cause": None,
+        "project_root": "."
     }
     
     # When we run investigate, it should raise a NodeInterrupt
