@@ -369,5 +369,26 @@ def evaluate(dataset_name: str = typer.Option("Debugger Benchmark", help="Name o
     except Exception as e:
         typer.echo(f"Error running evaluation: {e}", err=True)
 
+@app.command()
+def ingest_graph(path: str = "."):
+    """
+    Parse Python files into an AST and ingest them as a Code Graph into Neo4j.
+    """
+    from ingestion.graph_builder import CodeGraphBuilder
+    import time
+    
+    typer.echo(f"Starting Graph Ingestion for {path}...")
+    start_time = time.time()
+    
+    try:
+        builder = CodeGraphBuilder()
+        builder.ingest_repository(path)
+        builder.close()
+        
+        elapsed = time.time() - start_time
+        typer.echo(f"Successfully ingested codebase graph into Neo4j in {elapsed:.2f} seconds!")
+    except Exception as e:
+        typer.echo(f"Error during graph ingestion: {e}", err=True)
+
 if __name__ == "__main__":
     app()

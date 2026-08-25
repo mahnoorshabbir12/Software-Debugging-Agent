@@ -215,8 +215,12 @@ def search_commits(query: str, project_root: Annotated[str, InjectedToolArg]) ->
     return f"<file_content>\n{_truncate_output(output)}\n</file_content>"
 
 # Export the tools for the agent to use
+from sandbox.web_tools import web_search, fetch_webpage
+from sandbox.graph_tools import get_function_callers, get_function_dependencies, get_file_imports
+
+# 4. Agent tools registry
 AGENT_TOOLS = [
     get_repository_map, search_code, read_file, list_files,
     git_log, git_diff, git_show, git_blame, search_commits,
-    web_search, fetch_webpage
+    web_search, fetch_webpage, get_function_callers, get_function_dependencies, get_file_imports
 ]
