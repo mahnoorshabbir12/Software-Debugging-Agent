@@ -1,21 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, CheckCircle, AlertTriangle, Cpu, Wrench, DollarSign, Hash } from 'lucide-react';
-import { fetchObservabilityOverview } from '../api/client';
-import type { ObservabilityOverview } from '../api/client';
+import { fetchObservabilityOverview, fetchInvestigations, fetchRepositories } from '../api/client';
+import type { ObservabilityOverview, Investigation, Repository } from '../api/client';
 import './Dashboard.css';
 
+interface EnrichedInvestigation extends Investigation {
+  repoName: string;
+}
+
 export const Dashboard: React.FC = () => {
-  const [stats] = useState({
-    sessions: 128,
-    active: 4,
-    resolved: 96,
-    critical: 3
+  const [stats, setStats] = useState({
+    sessions: 0,
+    active: 0,
+    resolved: 0,
+    critical: 0
   });
 
   const [overview, setOverview] = useState<ObservabilityOverview | null>(null);
+  const [recentSessions, setRecentSessions] = useState<EnrichedInvestigation[]>([]);
 
   useEffect(() => {
     fetchObservabilityOverview().then(setOverview).catch(console.error);
+    
+    Promise.all([fetchInvestigations(), fetchRepositories()])
+      .then(([invs, repos]) => {
+        setStats({
+          sessions: invs.length,
+          active: invs.filter(i => i.status === 'investigating' || i.status === 'starting' || i.status === 'running').length,
+          resolved: invs.filter(i => i.status === 'resolved' || i.status === 'completed').length,
+          critical: invs.filter(i => i.status === 'failed' || i.status === 'error').length
+        });
+        
+        const repoMap = new Map(repos.map(r => [r.id, r.name]));
+        const enriched = invs.map(inv => ({
+          ...inv,
+          repoName: repoMap.get(inv.repository_id) || `Repo #${inv.repository_id}`
+        }));
+        
+        setRecentSessions(enriched.slice(-5).reverse());
+      })
+      .catch(console.error);
   }, []);
 
   const fmtCost = (c?: number) => (c == null ? '$0' : `$${c.toFixed(6)}`);
@@ -111,21 +135,22 @@ export const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>api-server</td>
-                <td>NullPointerError</td>
-                <td><span className="badge badge-success">Resolved</span></td>
-              </tr>
-              <tr>
-                <td>frontend</td>
-                <td>Build Failure</td>
-                <td><span className="badge badge-warning">Investigating</span></td>
-              </tr>
-              <tr>
-                <td>worker</td>
-                <td>Timeout</td>
-                <td><span className="badge badge-success">Resolved</span></td>
-              </tr>
+              {recentSessions.map(session => (
+                <tr key={session.id}>
+                  <td>{session.repoName}</td>
+                  <td>{session.bug_report.length > 50 ? session.bug_report.substring(0, 50) + '...' : session.bug_report}</td>
+                  <td>
+                    <span className={`badge ${session.status === 'resolved' ? 'badge-success' : session.status === 'failed' ? 'badge-error' : 'badge-warning'}`}>
+                      {session.status.charAt(0).toUpperCase() + session.status.slice(1)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {recentSessions.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="text-center text-muted">No recent sessions found.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

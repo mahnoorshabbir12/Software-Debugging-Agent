@@ -82,6 +82,13 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
+}
+
+.repo-card p {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  margin: 0;
 }
 
 .repo-card-header {

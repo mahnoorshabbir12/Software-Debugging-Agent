@@ -1,0 +1,18 @@
+/* Toast component styling */
+.toast {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 6px;
+  color: #fff;
+  animation: slideIn 0.3s ease forwards;
+  z-index: 1000;
+}
+.toast-info { background: var(--primary); }
+.toast-success { background: var(--success); }
+.toast-error { background: var(--error); }
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}

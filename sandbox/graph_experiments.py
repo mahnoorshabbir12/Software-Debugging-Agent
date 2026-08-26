@@ -1,7 +1,8 @@
 import os
 from typing import TypedDict, Annotated, List, Literal
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+
+from backend.llm import build_llm
 from langgraph.graph import StateGraph, END
 
 # Import our tools
@@ -54,12 +55,7 @@ def evaluate_information(state: GraphState) -> Literal["yes", "no", "max_loops"]
         print("  -> Max loops reached. Forcing Answer.")
         return "max_loops"
         
-    llm = ChatOpenAI(
-        model="meta-llama/llama-3.1-8b-instruct", 
-        base_url="https://openrouter.ai/api/v1",
-        api_key=os.environ.get("OPENROUTER_API_KEY"),
-        temperature=0
-    )
+    llm = build_llm(temperature=0)
     prompt = f"""
     Question: {state['question']}
     Search Results: {state['search_results']}
@@ -83,12 +79,7 @@ def evaluate_information(state: GraphState) -> Literal["yes", "no", "max_loops"]
 def generate_answer(state: GraphState):
     """Final node: Generates the answer."""
     print("--- NODE: Generate Answer ---")
-    llm = ChatOpenAI(
-        model="meta-llama/llama-3.1-8b-instruct", 
-        base_url="https://openrouter.ai/api/v1",
-        api_key=os.environ.get("OPENROUTER_API_KEY"),
-        temperature=0
-    )
+    llm = build_llm(temperature=0)
     prompt = f"Answer the question based on these results:\n\nQuestion: {state['question']}\n\nResults: {state['search_results']}"
     
     try:

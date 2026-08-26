@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play, CheckCircle, FileText, Pause, RotateCcw, Square, List as ListIcon, Activity } from 'lucide-react';
+import { Play, CheckCircle, FileText, Pause, RotateCcw, Square, List as ListIcon, Activity, Loader } from 'lucide-react';
 import { useDebugSession } from '../context/DebugSessionContext';
 import { fetchInvestigations, fetchTraces, fetchSessionMetrics } from '../api/client';
 import type { Investigation, SpanEvent, SessionMetrics } from '../api/client';
 import { useNavigate } from 'react-router-dom';
 import './Investigations.css';
+import { Toast } from '../components/Toast';
 
 const formatCost = (c?: number | null) => (c == null ? '-' : c === 0 ? '$0' : `$${c.toFixed(6)}`);
 const formatDuration = (ms?: number | null) => {
@@ -26,6 +27,9 @@ export const Investigations: React.FC = () => {
   // Observability tab state
   const [traces, setTraces] = useState<SpanEvent[]>([]);
   const [metrics, setMetrics] = useState<SessionMetrics | null>(null);
+  // Toast notifications
+  const [toastMessage, setToastMessage] = useState<string>('');
+  const [toastType, setToastType] = useState<'info' | 'success' | 'error'>('info');
 
   useEffect(() => {
     if (sessionId) {
@@ -41,6 +45,45 @@ export const Investigations: React.FC = () => {
         .finally(() => setLoadingList(false));
     }
   }, [sessionId]);
+
+  // Effect to show toast on status changes and auto‑clear after display
+  useEffect(() => {
+    if (!session) return;
+    let message = '';
+    let type: 'info' | 'success' | 'error' = 'info';
+    switch (session.status) {
+      case 'running':
+      case 'starting':
+        message = 'Investigation started';
+        type = 'info';
+        break;
+      case 'completed':
+        message = 'Investigation completed';
+        type = 'success';
+        break;
+      case 'failed':
+        message = 'Investigation failed';
+        type = 'error';
+        break;
+      case 'paused':
+        message = 'Investigation paused';
+        type = 'info';
+        break;
+      case 'stopped':
+        message = 'Investigation stopped';
+        type = 'info';
+        break;
+      default:
+        break;
+    }
+    if (message) {
+      setToastMessage(message);
+      setToastType(type);
+      // Clear toast after 4 seconds (matches Toast auto‑dismiss)
+      const clearTimer = setTimeout(() => setToastMessage(''), 4000);
+      return () => clearTimeout(clearTimer);
+    }
+  }, [session?.status]);
 
   // Load observability traces + metrics when the tab is open; poll while running.
   useEffect(() => {
@@ -101,6 +144,7 @@ export const Investigations: React.FC = () => {
 
   return (
     <div className="investigation-page">
+      {toastMessage && <Toast message={toastMessage} type={toastType} />}
       <header className="page-header flex justify-between items-center">
         <div>
           <div className="flex items-center gap-2 mb-1">
