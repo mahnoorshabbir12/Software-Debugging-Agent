@@ -39,7 +39,7 @@ from backend.observability.logging import get_logger
 
 log = get_logger("llm.factory")
 
-DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct"
+DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # One shared tracer instance so every run in the process funnels spans through
@@ -104,6 +104,7 @@ set_llm_cache(InMemoryCache())
 def build_llm(
     model_name: str = DEFAULT_MODEL,
     temperature: float = 0.0,
+    max_tokens: int = 8000,
     **kwargs,
 ) -> Any:
     """
@@ -121,6 +122,7 @@ def build_llm(
         api_key=os.environ.get("OPENROUTER_API_KEY", ""),
         temperature=temperature,
         max_retries=3,
+        max_tokens=max_tokens,
         **kwargs,
     )
     
