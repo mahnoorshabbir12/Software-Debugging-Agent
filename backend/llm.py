@@ -104,7 +104,7 @@ set_llm_cache(InMemoryCache())
 def build_llm(
     model_name: str = DEFAULT_MODEL,
     temperature: float = 0.0,
-    max_tokens: int = 8000,
+    max_tokens: int = 1500,
     **kwargs,
 ) -> Any:
     """
