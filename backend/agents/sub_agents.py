@@ -35,7 +35,7 @@ def get_code_agent_prompt() -> SystemMessage:
 Your job is to navigate the codebase using your file and graph tools.
 You can read files, search for code patterns, and use the Code Graph tools to trace dependencies and callers.
 Answer the orchestrator's request concisely with facts and evidence found in the code.
-""")
+IMPORTANT: When you find relevant buggy code, you MUST include the exact, unmodified code snippet in your final response. The downstream patch agent relies on this snippet to generate exact search-and-replace patches.""")
 
 def get_git_agent_prompt() -> SystemMessage:
     return SystemMessage(content="""You are the Git Agent.

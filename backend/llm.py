@@ -39,7 +39,7 @@ from backend.observability.logging import get_logger
 
 log = get_logger("llm.factory")
 
-DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
+DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # One shared tracer instance so every run in the process funnels spans through
@@ -125,6 +125,16 @@ def build_llm(
         max_tokens=max_tokens,
         **kwargs,
     )
+    
+    # OpenRouter's LLaMA 3.1 8B endpoint throws a 400 error if parallel_tool_calls
+    # is enabled (which LangChain enables by default for OpenAI-compatible endpoints).
+    # We intercept bind_tools to force it off.
+    original_bind_tools = llm.bind_tools
+    def custom_bind_tools(tools, **bind_kwargs):
+        bind_kwargs["parallel_tool_calls"] = False
+        return original_bind_tools(tools, **bind_kwargs)
+        
+    llm.bind_tools = custom_bind_tools
     
     return llm
 

@@ -101,11 +101,20 @@ def read_file(file_path: str, project_root: Annotated[str, InjectedToolArg], sta
         start = max(0, start)
         end = min(len(lines), end)
         
+        if (end - start) > 300:
+            end = start + 300
+            truncated = True
+        else:
+            truncated = False
+        
         snippet_lines = []
         for i in range(start, end):
             snippet_lines.append(f"{i+1}: {lines[i]}")
             
-        return f"<file_content>\n{chr(10).join(snippet_lines)}\n</file_content>"
+        res = f"<file_content>\n{chr(10).join(snippet_lines)}\n</file_content>"
+        if truncated:
+            res += f"\n... [Output truncated to 300 lines. Total file lines: {len(lines)}. Please use start_line and end_line to read specific sections.]"
+        return res
     except Exception as e:
         return f"Error reading file '{file_path}': {e}"
 
@@ -148,7 +157,7 @@ def _run_git_command(args: List[str], path: str = ".") -> str:
     except Exception as e:
         return f"Error executing git command: {e}"
 
-def _truncate_output(text: str, max_lines: int = 500) -> str:
+def _truncate_output(text: str, max_lines: int = 250) -> str:
     lines = text.splitlines()
     if len(lines) > max_lines:
         return "\n".join(lines[:max_lines]) + f"\n... [Output truncated. Total lines: {len(lines)}]"
@@ -202,7 +211,7 @@ def git_blame(file_path: str, project_root: Annotated[str, InjectedToolArg]) -> 
     """
     args = ["git", "blame", file_path]
     output = _run_git_command(args, project_root)
-    return f"<file_content>\n{_truncate_output(output, max_lines=1000)}\n</file_content>"
+    return f"<file_content>\n{_truncate_output(output, max_lines=250)}\n</file_content>"
 
 @tool
 def search_commits(query: str, project_root: Annotated[str, InjectedToolArg]) -> str:

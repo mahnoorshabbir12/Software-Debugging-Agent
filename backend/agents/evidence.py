@@ -40,7 +40,7 @@ class EvidenceGraph:
     A Multi-Agent LangGraph that takes a Hypothesis, uses sub-agents to search for evidence,
     and returns a structured Evaluation.
     """
-    def __init__(self, model_name: str = "meta-llama/llama-3.1-8b-instruct:free"):
+    def __init__(self, model_name: str = "meta-llama/llama-3.1-8b-instruct"):
         self.llm = build_llm(model_name=model_name, temperature=0)
         self.llm_evaluator = self.llm.with_structured_output(Evaluation)
         self.llm_orchestrator = self.llm.with_structured_output(OrchestratorDecision)
@@ -126,12 +126,11 @@ If you have gathered enough evidence to confidently support or reject the hypoth
 
     def _run_sub_agent(self, agent, state: EvidenceState, name: str):
         """Helper to run a sub-agent and append its final response."""
-        # The agent expects a 'messages' key. We pass the entire history.
-        # It returns a new state dict with updated messages.
-        # We only care about the last message (the agent's response).
-        
-        # Note: We must ensure the last message is a HumanMessage because that's what we appended in orchestrator.
-        response_state = agent.invoke({"messages": state["messages"]})
+        # OPTIMIZATION: Instead of passing the entire global history,
+        # we only pass the last message (which contains the orchestrator's instruction)
+        # to the sub-agent. This prevents massive token explosion.
+        last_message = state["messages"][-1]
+        response_state = agent.invoke({"messages": [last_message]})
         
         # The last message is an AIMessage from the sub-agent
         final_message = response_state["messages"][-1]
