@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from langchain_core.prompts import ChatPromptTemplate
 
 from backend.llm import build_llm, traced_config
+from backend.utils.token_utils import token_count, truncate_to_budget
+from backend.llm import get_prompt_budget
 from backend.observability.context import correlation_scope
 
 class InvestigationRequest(BaseModel):
@@ -21,8 +23,10 @@ class TriageAgent:
     The entry point of the debugging system.
     Converts a messy, natural-language bug report into a structured InvestigationRequest.
     """
-    def __init__(self, model_name: str = "meta-llama/llama-3.1-8b-instruct"):
-        # We use OpenRouter as our LLM provider (configured centrally in build_llm)
+    def __init__(self, model_name: str | None = None):
+        # build_llm() routes through the LiteLLM Proxy gateway (configured
+        # centrally in backend/llm.py). The gateway resolves the virtual model
+        # alias to the real provider deployment.
         self.llm = build_llm(model_name=model_name, temperature=0)
         
         # Enforce the Pydantic schema
@@ -49,5 +53,9 @@ Bug Report:
         # correlation_scope(node=...) tags every span from this call as "triage";
         # traced_config() attaches the observability tracer to the run.
         with correlation_scope(node="triage"):
+            # Truncate bug_report if it exceeds token budget
+            budget = get_prompt_budget()
+            if token_count(bug_report) > budget:
+                bug_report = truncate_to_budget(bug_report, budget)
             result = chain.invoke({"bug_report": bug_report}, config=traced_config())
         return result

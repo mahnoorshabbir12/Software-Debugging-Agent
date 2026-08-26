@@ -36,6 +36,21 @@ services:
     volumes:
       - neo4j_data:/data
 
+  # ── LLM Gateway (LiteLLM Proxy) ──────────────────────────────────────────
+  # All LLM traffic from the backend routes through this proxy, which handles
+  # model aliasing, provider failover, and gateway-level caching.
+  litellm:
+    image: ghcr.io/berriai/litellm:main-latest
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./litellm_config.yaml:/app/config.yaml
+    environment:
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-debugger-dev}
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    restart: unless-stopped
+
 volumes:
   qdrant_data:
   postgres_data:

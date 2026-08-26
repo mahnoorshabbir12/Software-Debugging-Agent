@@ -1,14 +1,27 @@
 """
 Shared LLM factory + traced run config.
 
-Concept: a factory / single construction point
-----------------------------------------------
-Before Module 21, each agent (triage, hypothesis, evidence, patch) built its own
-ChatOpenAI pointed at OpenRouter, duplicating the base_url, api_key and provider
-wiring four times. That is four places to edit for any cross-cutting concern.
+Concept: LLM Gateway via LiteLLM Proxy (Module 28)
+---------------------------------------------------
+Before Module 28, build_llm() pointed every agent directly at OpenRouter.
+If OpenRouter went down, every agent crashed. Switching providers meant
+editing Python code.
 
-This factory centralizes construction so provider config (OpenRouter base URL,
-API key) lives in ONE place, and optional LangSmith tracing is toggled here.
+Now, build_llm() points at the **LiteLLM Proxy** (a lightweight reverse-
+proxy for LLM APIs running as a Docker sidecar). The proxy handles:
+  - Model aliasing: agents request "debugger/main-model", the proxy
+    resolves it to the real provider model.
+  - Provider failover: if OpenRouter returns 503, the proxy automatically
+    retries against the fallback provider (e.g., local Ollama).
+  - Gateway-level caching (L2): shared across all workers.
+
+Architecture:
+  Agent → build_llm() → LiteLLM Proxy (localhost:4000) → Provider API
+                ↓
+          ChatOpenAI(base_url=LITELLM_BASE_URL)
+
+The factory still centralizes construction so all cross-cutting concerns
+(tracing, caching, parameter defaults) live in ONE place.
 
 Concept: attach tracing via run config, not construction
 --------------------------------------------------------
@@ -39,9 +52,18 @@ from backend.observability.logging import get_logger
 
 log = get_logger("llm.factory")
 
-DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct"
-OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+# ── Gateway configuration ────────────────────────────────────────────────────
+# These read from environment variables so that switching providers or models
+# is a config change, not a code change. Defaults point at a local LiteLLM
+# Proxy instance (started via `docker compose up litellm`).
+DEFAULT_MODEL = os.environ.get("LLM_MODEL_NAME", "debugger/main-model")
+LITELLM_BASE_URL = os.environ.get("LITELLM_BASE_URL", "http://localhost:4000/v1")
 
+MAX_PROMPT_TOKENS = 2600
+
+def get_prompt_budget() -> int:
+    """Expose the safe prompt token budget for the entire backend."""
+    return MAX_PROMPT_TOKENS
 # One shared tracer instance so every run in the process funnels spans through
 # the same handler (its per-run state is keyed by run_id, so sharing is safe).
 _TRACER: Optional[TracingCallbackHandler] = None
@@ -98,43 +120,49 @@ def _maybe_enable_langsmith() -> None:
 from langchain_core.globals import set_llm_cache
 from langchain_core.caches import InMemoryCache
 
-# Enable global caching for LLM calls to save tokens and time on duplicate queries
+# L1 cache: fast in-process cache for identical prompts within a single worker.
+# The LiteLLM Proxy provides an L2 gateway-level cache shared across workers.
 set_llm_cache(InMemoryCache())
 
+class SingleToolChatOpenAI(ChatOpenAI):
+    def bind_tools(self, tools, **kwargs):
+        # Some providers (e.g., OpenRouter's LLaMA 3.1 8B) throw a 400 error
+        # if parallel_tool_calls is enabled. We override bind_tools to force it
+        # off. The LiteLLM Proxy's `drop_params: true` setting also helps, but
+        # this is a defence-in-depth measure at the client level.
+        kwargs["parallel_tool_calls"] = False
+        return super().bind_tools(tools, **kwargs)
+
 def build_llm(
-    model_name: str = DEFAULT_MODEL,
+    model_name: str | None = None,
     temperature: float = 0.0,
     max_tokens: int = 1500,
     **kwargs,
 ) -> Any:
     """
-    Build a ChatOpenAI client wired to OpenRouter.
+    Build a ChatOpenAI client wired to the LiteLLM Proxy gateway.
+
+    The gateway resolves the virtual model name (e.g., "debugger/main-model")
+    to a real provider deployment and handles failover automatically.
 
     Tracing is NOT attached here; callers attach it per-run via traced_config()
     so callbacks propagate through the whole run tree exactly once.
     """
-    # Ensure settings (and thus .env) are loaded before we read the API key,
+    # Ensure settings (and thus .env) are loaded before we read env vars,
     # regardless of whether the caller configured logging first.
     get_observability_settings()
-    llm = ChatOpenAI(
-        model=model_name,
-        base_url=OPENROUTER_BASE_URL,
-        api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+
+    resolved_model = model_name or DEFAULT_MODEL
+
+    llm = SingleToolChatOpenAI(
+        model=resolved_model,
+        base_url=LITELLM_BASE_URL,
+        api_key=os.environ.get("LITELLM_API_KEY", "sk-debugger-dev"),
         temperature=temperature,
         max_retries=3,
         max_tokens=max_tokens,
         **kwargs,
     )
-    
-    # OpenRouter's LLaMA 3.1 8B endpoint throws a 400 error if parallel_tool_calls
-    # is enabled (which LangChain enables by default for OpenAI-compatible endpoints).
-    # We intercept bind_tools to force it off.
-    original_bind_tools = llm.bind_tools
-    def custom_bind_tools(tools, **bind_kwargs):
-        bind_kwargs["parallel_tool_calls"] = False
-        return original_bind_tools(tools, **bind_kwargs)
-        
-    llm.bind_tools = custom_bind_tools
     
     return llm
 

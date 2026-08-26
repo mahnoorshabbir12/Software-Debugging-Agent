@@ -24,8 +24,9 @@ router = APIRouter(
 def _enrich_investigation(investigation: DebugSession, session: Session) -> dict:
     """Adds repository_name to a DebugSession for the API response."""
     data = investigation.model_dump() if hasattr(investigation, 'model_dump') else investigation.dict()
-    repo = session.get(Repository, investigation.repository_id)
-    data["repository_name"] = repo.name if repo else None
+    repo = None
+    if investigation.repository_id is not None:
+        repo = session.get(Repository, investigation.repository_id)
     return data
 
 @router.get("/", response_model=List[DebugSessionResponse])
@@ -59,6 +60,10 @@ def create_investigation(
     session.add(investigation)
     session.commit()
     session.refresh(investigation)
+    
+    # Pre-register the SSE queue in the current event loop so that any events 
+    # emitted immediately by the background task are buffered before the frontend connects.
+    EventDispatcher.register_client(investigation.id)
     
     # Start the investigation pipeline in a background thread
     background_tasks.add_task(run_investigation, investigation.id)
@@ -159,7 +164,7 @@ def stop_investigation(id: int, session: Session = Depends(get_session)):
     session.add(investigation)
     session.commit()
     session.refresh(investigation)
-    return investigation
+    return _enrich_investigation(investigation, session)
 
 @router.post("/{id}/pause", response_model=DebugSessionResponse)
 def pause_investigation(id: int, session: Session = Depends(get_session)):
@@ -172,7 +177,7 @@ def pause_investigation(id: int, session: Session = Depends(get_session)):
     session.add(investigation)
     session.commit()
     session.refresh(investigation)
-    return investigation
+    return _enrich_investigation(investigation, session)
 
 @router.post("/{id}/resume", response_model=DebugSessionResponse)
 def resume_investigation(id: int, session: Session = Depends(get_session)):
@@ -185,13 +190,20 @@ def resume_investigation(id: int, session: Session = Depends(get_session)):
     session.add(investigation)
     session.commit()
     session.refresh(investigation)
-    return investigation
+    return _enrich_investigation(investigation, session)
 
 @router.post("/{id}/retry", response_model=DebugSessionResponse)
-def retry_investigation(id: int, session: Session = Depends(get_session)):
+def retry_investigation(
+    id: int, 
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session)
+):
     investigation = session.get(DebugSession, id)
     if not investigation:
         raise HTTPException(status_code=404, detail="Investigation not found")
+        
+    # Pre-register the SSE queue to buffer events
+    EventDispatcher.register_client(id)
         
     # Reset controller and status
     AgentController.register_session(id)
@@ -200,4 +212,8 @@ def retry_investigation(id: int, session: Session = Depends(get_session)):
     session.add(investigation)
     session.commit()
     session.refresh(investigation)
-    return investigation
+    
+    # Restart the background investigation
+    background_tasks.add_task(run_investigation, id)
+    
+    return _enrich_investigation(investigation, session)

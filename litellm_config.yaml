@@ -1,0 +1,78 @@
+# =============================================================================
+# LiteLLM Proxy Configuration — LLM Gateway for the Autonomous Debugger
+# =============================================================================
+#
+# Concept: Model aliasing via a gateway
+# --------------------------------------
+# Instead of hardcoding provider-specific model identifiers (e.g.,
+# "meta-llama/llama-3.1-8b-instruct") across the Python codebase, the
+# application requests a *virtual* model name ("debugger/main-model").
+# This config file tells the LiteLLM Proxy how to resolve that alias to
+# one or more real provider deployments.
+#
+# Why this matters:
+#   - Swapping models (8B → 70B, Llama → GPT-4o) is a YAML edit, not a
+#     code change + redeploy.
+#   - Multiple deployments under the same alias give us automatic load
+#     balancing and failover.
+#
+# Architecture:
+#   Agent → build_llm() → LiteLLM Proxy (localhost:4000) → Provider API
+# =============================================================================
+
+model_list:
+  # ── Primary: OpenRouter ────────────────────────────────────────────────────
+  # This is the default remote provider. OpenRouter itself aggregates
+  # multiple backends, but we still benefit from the gateway layer for
+  # failover to a completely different provider (see fallback below).
+  - model_name: debugger/main-model
+    litellm_params:
+      model: openrouter/meta-llama/llama-3.1-8b-instruct
+      api_key: os.environ/OPENROUTER_API_KEY
+      max_retries: 2
+
+  # ── Fallback: Local Ollama ─────────────────────────────────────────────────
+  # When running without internet or to save API costs during development,
+  # the proxy automatically falls back to a local Ollama instance if the
+  # primary deployment fails.
+  #
+  # host.docker.internal resolves to the host machine from inside Docker,
+  # where Ollama typically runs on port 11434.
+  - model_name: debugger/main-model
+    litellm_params:
+      model: ollama/llama3.1
+      api_base: http://host.docker.internal:11434
+
+# =============================================================================
+# Router Settings — Failover & Load Balancing
+# =============================================================================
+router_settings:
+  # simple-shuffle randomly distributes across healthy deployments.
+  # Other options: least-busy, latency-based-routing.
+  routing_strategy: simple-shuffle
+  num_retries: 2
+  # If all deployments under "debugger/main-model" for one provider fail,
+  # retry against the next deployment (OpenRouter → Ollama).
+  fallbacks:
+    - debugger/main-model: [debugger/main-model]
+
+# =============================================================================
+# LiteLLM Settings — Caching & Parameter Handling
+# =============================================================================
+litellm_settings:
+  # Gateway-level response caching (L2). The application also keeps a fast
+  # in-process L1 cache via LangChain's InMemoryCache.
+  cache: true
+  # Silently drop parameters that a specific provider doesn't support
+  # (e.g., parallel_tool_calls on Ollama). Prevents 400 errors when
+  # switching providers.
+  drop_params: true
+
+# =============================================================================
+# General Settings — Authentication
+# =============================================================================
+general_settings:
+  # The master key protects the LiteLLM admin API (creating virtual keys,
+  # viewing spend, etc.). For local dev, a simple placeholder is fine.
+  # In production, use a strong secret from your vault.
+  master_key: os.environ/LITELLM_MASTER_KEY

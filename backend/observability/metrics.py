@@ -26,7 +26,8 @@ from backend.observability.logging import get_logger
 log = get_logger("observability.metrics")
 
 # USD per 1,000,000 tokens: model -> (input_price, output_price).
-# Approximate OpenRouter/vendor list prices; adjust as needed.
+# Approximate vendor list prices. These apply regardless of whether calls go
+# through the LiteLLM gateway or directly to a provider. Adjust as needed.
 MODEL_PRICES: dict[str, tuple[float, float]] = {
     "meta-llama/llama-3.1-8b-instruct": (0.02, 0.03),
     "meta-llama/llama-3.1-70b-instruct": (0.35, 0.40),

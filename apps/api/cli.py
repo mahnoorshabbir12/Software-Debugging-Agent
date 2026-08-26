@@ -201,7 +201,7 @@ def test_tools(query: str = typer.Argument("What does the repository look like?"
 def test_graph(query: str = typer.Argument("Where is the RepositoryAnalyzer class defined?")):
     """
     Test the LangGraph fundamental experiments (Python loop vs LangGraph loop).
-    Requires OPENROUTER_API_KEY environment variable.
+    Requires the LiteLLM Proxy gateway to be running (docker compose up litellm).
     """
     from sandbox.graph_experiments import run_python_loop, run_langgraph_loop
     import os
@@ -209,9 +209,9 @@ def test_graph(query: str = typer.Argument("Where is the RepositoryAnalyzer clas
     
     load_dotenv()
     
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        typer.echo("Error: OPENROUTER_API_KEY environment variable is missing.", err=True)
-        typer.echo("Please add it to your .env file or export it.", err=True)
+    if not os.environ.get("LITELLM_API_KEY"):
+        typer.echo("Error: LITELLM_API_KEY environment variable is missing.", err=True)
+        typer.echo("Ensure the LiteLLM gateway is configured. See .env.example.", err=True)
         return
         
     try:
@@ -231,8 +231,8 @@ def triage(bug_report: str = typer.Argument(..., help="The unstructured bug repo
     
     load_dotenv()
     
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        typer.echo("Error: OPENROUTER_API_KEY environment variable is missing.", err=True)
+    if not os.environ.get("LITELLM_API_KEY"):
+        typer.echo("Error: LITELLM_API_KEY environment variable is missing. See .env.example.", err=True)
         return
         
     try:
@@ -256,8 +256,8 @@ def hypothesis(bug_report: str = typer.Argument(..., help="The unstructured bug 
     
     load_dotenv()
     
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        typer.echo("Error: OPENROUTER_API_KEY environment variable is missing.", err=True)
+    if not os.environ.get("LITELLM_API_KEY"):
+        typer.echo("Error: LITELLM_API_KEY environment variable is missing. See .env.example.", err=True)
         return
         
     try:
@@ -294,8 +294,8 @@ def evidence(bug_report: str = typer.Argument(..., help="The unstructured bug re
     
     load_dotenv()
     
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        typer.echo("Error: OPENROUTER_API_KEY environment variable is missing.", err=True)
+    if not os.environ.get("LITELLM_API_KEY"):
+        typer.echo("Error: LITELLM_API_KEY environment variable is missing. See .env.example.", err=True)
         return
         
     try:
